@@ -16,56 +16,12 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import pickle
 import numpy as np
 import re
+import nltk
 import os
 from huggingface_hub import hf_hub_download
 
-# Custom InputLayer deserialization function to handle compatibility issues
-def custom_input_layer_deserializer(config):
-    """Custom deserializer for InputLayer that handles batch_shape parameter"""
-    # Convert batch_shape to input_shape for compatibility
-    if 'batch_shape' in config:
-        batch_shape = config.pop('batch_shape')
-        if batch_shape and len(batch_shape) > 1:
-            config['input_shape'] = batch_shape[1:]
-    
-    # Create InputLayer with modified config
-    return tf.keras.layers.InputLayer(**config)
-
-def create_fallback_model():
-    """Create a simple fallback model if loading fails"""
-    print("Creating fallback model with basic architecture...")
-    
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape=(200,)),  # Use Input instead of InputLayer
-        tf.keras.layers.Dense(128, activation='relu'),
-        tf.keras.layers.Dropout(0.5),
-        tf.keras.layers.Dense(64, activation='relu'),
-        tf.keras.layers.Dropout(0.3),
-        tf.keras.layers.Dense(1, activation='sigmoid')
-    ])
-    
-    model.compile(
-        optimizer='adam',
-        loss='binary_crossentropy',
-        metrics=['accuracy']
-    )
-    
-    return model
-
-# Import NLTK with error handling for deployment environments
-try:
-    import nltk
-    NLTK_AVAILABLE = True
-except ImportError as e:
-    print(f"NLTK import failed: {e}")
-    NLTK_AVAILABLE = False
-
 def download_nltk_data():
-    """Download required NLTK data with error handling"""
-    if not NLTK_AVAILABLE:
-        print("NLTK not available, using fallback stopwords")
-        return False
-        
+    """Download required NLTK data"""
     required_data = [
         ('corpora/stopwords', 'stopwords'),
         ('tokenizers/punkt', 'punkt')
@@ -82,25 +38,11 @@ def download_nltk_data():
                 print(f"✓ NLTK {data_name} downloaded successfully")
             except Exception as e:
                 print(f"Error downloading NLTK {data_name}: {e}")
-                return False
-        except Exception as e:
-            print(f"Error checking NLTK {data_name}: {e}")
-            return False
-    return True
 
 # Download required NLTK data
-nltk_success = download_nltk_data()
+download_nltk_data()
 
-# Import stopwords with fallback
-if nltk_success and NLTK_AVAILABLE:
-    try:
-        from nltk.corpus import stopwords
-        STOPWORDS_AVAILABLE = True
-    except Exception as e:
-        print(f"Error importing NLTK stopwords: {e}")
-        STOPWORDS_AVAILABLE = False
-else:
-    STOPWORDS_AVAILABLE = False
+from nltk.corpus import stopwords
 
 app = Flask(__name__)
 
@@ -117,137 +59,12 @@ HF_MODEL_FILENAME = "phishing_detector_model.keras"
 model = None
 tokenizer = None
 
-# Initialize stopwords with fallback
-if STOPWORDS_AVAILABLE:
-    try:
-        stop_words = set(stopwords.words('english'))
-        print("✓ NLTK stopwords loaded successfully")
-    except Exception as e:
-        print(f"Error loading NLTK stopwords: {e}")
-        stop_words = set()
-else:
-    # Fallback stopwords list for deployment environments without NLTK
-    stop_words = {
-        'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
-        'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
-        'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
-        'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are',
-        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does',
-        'did', 'doing', 'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until',
-        'while', 'of', 'at', 'by', 'for', 'with', 'through', 'during', 'before', 'after',
-        'above', 'below', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again',
-        'further', 'then', 'once'
-    }
-    print("✓ Using fallback stopwords (NLTK not available)")
-
-def load_tokenizer_with_compatibility():
-    """Load tokenizer with compatibility handling for different Keras versions"""
-    import sys
-    import importlib
-    
-    # Create a custom unpickler that handles missing modules
-    class CompatibilityUnpickler(pickle.Unpickler):
-        def find_class(self, module, name):
-            # Handle keras.src.legacy module compatibility
-            if module.startswith('keras.src.legacy'):
-                # Map legacy modules to current equivalents
-                if 'preprocessing' in module:
-                    try:
-                        # Try current keras preprocessing
-                        from tensorflow.keras.preprocessing.text import Tokenizer
-                        if name == 'Tokenizer':
-                            return Tokenizer
-                    except ImportError:
-                        pass
-                    
-                    try:
-                        # Try keras_preprocessing
-                        from keras_preprocessing.text import Tokenizer
-                        if name == 'Tokenizer':
-                            return Tokenizer
-                    except ImportError:
-                        pass
-                
-                # If we can't find the exact class, try to find it in current keras
-                try:
-                    current_module = module.replace('keras.src.legacy', 'tensorflow.keras')
-                    mod = importlib.import_module(current_module)
-                    return getattr(mod, name)
-                except (ImportError, AttributeError):
-                    pass
-                    
-                try:
-                    current_module = module.replace('keras.src.legacy', 'keras')
-                    mod = importlib.import_module(current_module)
-                    return getattr(mod, name)
-                except (ImportError, AttributeError):
-                    pass
-            
-            # Default behavior
-            return super().find_class(module, name)
-    
-    # Load with custom unpickler
-    with open(TOKENIZER_FILE, 'rb') as handle:
-        unpickler = CompatibilityUnpickler(handle)
-        return unpickler.load()
-
-def create_fallback_tokenizer():
-    """Create a basic fallback tokenizer when the original can't be loaded"""
-    try:
-        from tensorflow.keras.preprocessing.text import Tokenizer
-    except ImportError:
-        try:
-            from keras_preprocessing.text import Tokenizer
-        except ImportError:
-            # Create a very basic tokenizer class
-            class BasicTokenizer:
-                def __init__(self, num_words=10000, oov_token="<OOV>"):
-                    self.num_words = num_words
-                    self.oov_token = oov_token
-                    self.word_index = {}
-                    self.index_word = {}
-                    
-                def texts_to_sequences(self, texts):
-                    """Convert texts to sequences of integers"""
-                    sequences = []
-                    for text in texts:
-                        words = str(text).lower().split()
-                        sequence = []
-                        for word in words:
-                            if word in self.word_index:
-                                sequence.append(self.word_index[word])
-                            else:
-                                sequence.append(1)  # OOV token index
-                        sequences.append(sequence)
-                    return sequences
-                    
-                def fit_on_texts(self, texts):
-                    """Build word index from texts"""
-                    word_counts = {}
-                    for text in texts:
-                        words = str(text).lower().split()
-                        for word in words:
-                            word_counts[word] = word_counts.get(word, 0) + 1
-                    
-                    # Sort by frequency and assign indices
-                    sorted_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
-                    self.word_index = {self.oov_token: 1}
-                    self.index_word = {1: self.oov_token}
-                    
-                    for i, (word, count) in enumerate(sorted_words[:self.num_words-1], 2):
-                        self.word_index[word] = i
-                        self.index_word[i] = word
-            
-            return BasicTokenizer()
-    
-    # Create a basic tokenizer with common settings
-    tokenizer = Tokenizer(num_words=10000, oov_token="<OOV>")
-    
-    # If we have some sample data, we could fit it, but for now return empty tokenizer
-    # In a real scenario, you'd want to retrain or have backup training data
-    print("Warning: Using untrained fallback tokenizer. Predictions may be inaccurate.")
-    
-    return tokenizer
+# Initialize stopwords after ensuring download
+try:
+    stop_words = set(stopwords.words('english'))
+except Exception as e:
+    print(f"Error loading stopwords: {e}")
+    stop_words = set()  # Fallback to empty set
 
 def load_ai_model():
     """Load the AI model and tokenizer"""
@@ -275,92 +92,24 @@ def load_ai_model():
                 print("Please ensure the model is uploaded to Hugging Face and the repo_id is correct.")
                 return False
         
-        # Try loading with different compatibility options
-        try:
-            # First try: Standard loading
-            model = tf.keras.models.load_model(MODEL_FILE)
-            print("Model loaded successfully!")
-        except Exception as load_error:
-            print(f"Standard model loading failed: {load_error}")
-            print("Trying compatibility mode...")
-            
-            try:
-                # Second try: Load with compile=False to avoid optimizer issues
-                model = tf.keras.models.load_model(MODEL_FILE, compile=False)
-                
-                # Recompile the model with current TensorFlow version
-                model.compile(
-                    optimizer='adam',
-                    loss='binary_crossentropy',
-                    metrics=['accuracy']
-                )
-                print("Model loaded successfully in compatibility mode!")
-                
-            except Exception as compat_error:
-                print(f"Compatibility mode loading failed: {compat_error}")
-                print("Trying custom object loading...")
-                
-                try:
-                    # Third try: Load with custom deserialization to handle batch_shape
-                    with tf.keras.utils.custom_object_scope({
-                        'InputLayer': custom_input_layer_deserializer
-                    }):
-                        model = tf.keras.models.load_model(MODEL_FILE, compile=False)
-                    
-                    # Recompile the model
-                    model.compile(
-                        optimizer='adam',
-                        loss='binary_crossentropy',
-                        metrics=['accuracy']
-                    )
-                    print("Model loaded successfully with custom deserialization!")
-                    
-                except Exception as custom_error:
-                    print(f"Custom deserialization loading failed: {custom_error}")
-                    
-                    try:
-                        # Fourth try: Manual model reconstruction
-                        print("Trying manual model reconstruction...")
-                        model = create_fallback_model()
-                        print("Fallback model created successfully!")
-                        
-                    except Exception as fallback_error:
-                        print(f"Fallback model creation failed: {fallback_error}")
-                        raise fallback_error
+        model = tf.keras.models.load_model(MODEL_FILE)
+        print("Model loaded successfully!")
     except Exception as e:
         print(f"Error loading model: {e}")
         return False
     
-    # Load tokenizer with compatibility handling
+    # Load tokenizer
     print("Loading tokenizer...")
     try:
-        # First try: Standard pickle loading
         with open(TOKENIZER_FILE, 'rb') as handle:
             tokenizer = pickle.load(handle)
         print("Tokenizer loaded successfully!")
     except FileNotFoundError:
         print(f"Error: Tokenizer file '{TOKENIZER_FILE}' not found.")
-        print("Creating fallback tokenizer...")
-        tokenizer = create_fallback_tokenizer()
-        print("Fallback tokenizer created successfully!")
+        return False
     except Exception as e:
         print(f"Error loading tokenizer: {e}")
-        print("Attempting compatibility mode loading...")
-        
-        try:
-            # Second try: Load with custom unpickler for compatibility
-            tokenizer = load_tokenizer_with_compatibility()
-            print("Tokenizer loaded successfully in compatibility mode!")
-        except Exception as compat_error:
-            print(f"Compatibility mode loading failed: {compat_error}")
-            print("Creating fallback tokenizer...")
-            
-            try:
-                tokenizer = create_fallback_tokenizer()
-                print("Fallback tokenizer created successfully!")
-            except Exception as fallback_error:
-                print(f"Fallback tokenizer creation failed: {fallback_error}")
-                return False
+        return False
     
     print("✓ AI system ready!")
     return True
