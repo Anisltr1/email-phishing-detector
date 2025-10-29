@@ -16,12 +16,23 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import pickle
 import numpy as np
 import re
-import nltk
 import os
 from huggingface_hub import hf_hub_download
 
+# Import NLTK with error handling for deployment environments
+try:
+    import nltk
+    NLTK_AVAILABLE = True
+except ImportError as e:
+    print(f"NLTK import failed: {e}")
+    NLTK_AVAILABLE = False
+
 def download_nltk_data():
-    """Download required NLTK data"""
+    """Download required NLTK data with error handling"""
+    if not NLTK_AVAILABLE:
+        print("NLTK not available, using fallback stopwords")
+        return False
+        
     required_data = [
         ('corpora/stopwords', 'stopwords'),
         ('tokenizers/punkt', 'punkt')
@@ -38,11 +49,25 @@ def download_nltk_data():
                 print(f"✓ NLTK {data_name} downloaded successfully")
             except Exception as e:
                 print(f"Error downloading NLTK {data_name}: {e}")
+                return False
+        except Exception as e:
+            print(f"Error checking NLTK {data_name}: {e}")
+            return False
+    return True
 
 # Download required NLTK data
-download_nltk_data()
+nltk_success = download_nltk_data()
 
-from nltk.corpus import stopwords
+# Import stopwords with fallback
+if nltk_success and NLTK_AVAILABLE:
+    try:
+        from nltk.corpus import stopwords
+        STOPWORDS_AVAILABLE = True
+    except Exception as e:
+        print(f"Error importing NLTK stopwords: {e}")
+        STOPWORDS_AVAILABLE = False
+else:
+    STOPWORDS_AVAILABLE = False
 
 app = Flask(__name__)
 
@@ -59,12 +84,28 @@ HF_MODEL_FILENAME = "phishing_detector_model.keras"
 model = None
 tokenizer = None
 
-# Initialize stopwords after ensuring download
-try:
-    stop_words = set(stopwords.words('english'))
-except Exception as e:
-    print(f"Error loading stopwords: {e}")
-    stop_words = set()  # Fallback to empty set
+# Initialize stopwords with fallback
+if STOPWORDS_AVAILABLE:
+    try:
+        stop_words = set(stopwords.words('english'))
+        print("✓ NLTK stopwords loaded successfully")
+    except Exception as e:
+        print(f"Error loading NLTK stopwords: {e}")
+        stop_words = set()
+else:
+    # Fallback stopwords list for deployment environments without NLTK
+    stop_words = {
+        'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
+        'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
+        'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
+        'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are',
+        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does',
+        'did', 'doing', 'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until',
+        'while', 'of', 'at', 'by', 'for', 'with', 'through', 'during', 'before', 'after',
+        'above', 'below', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again',
+        'further', 'then', 'once'
+    }
+    print("✓ Using fallback stopwords (NLTK not available)")
 
 def load_ai_model():
     """Load the AI model and tokenizer"""
