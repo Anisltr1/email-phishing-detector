@@ -19,6 +19,17 @@ import re
 import os
 from huggingface_hub import hf_hub_download
 
+# Custom InputLayer class to handle compatibility issues
+class CompatibleInputLayer(tf.keras.layers.InputLayer):
+    """Custom InputLayer that handles batch_shape parameter for compatibility"""
+    def __init__(self, *args, **kwargs):
+        # Handle the batch_shape parameter that causes issues in newer TensorFlow versions
+        if 'batch_shape' in kwargs:
+            batch_shape = kwargs.pop('batch_shape')
+            if batch_shape and len(batch_shape) > 1:
+                kwargs['input_shape'] = batch_shape[1:]
+        super().__init__(*args, **kwargs)
+
 # Import NLTK with error handling for deployment environments
 try:
     import nltk
@@ -133,8 +144,53 @@ def load_ai_model():
                 print("Please ensure the model is uploaded to Hugging Face and the repo_id is correct.")
                 return False
         
-        model = tf.keras.models.load_model(MODEL_FILE)
-        print("Model loaded successfully!")
+        # Try loading with different compatibility options
+        try:
+            # First try: Standard loading
+            model = tf.keras.models.load_model(MODEL_FILE)
+            print("Model loaded successfully!")
+        except Exception as load_error:
+            print(f"Standard model loading failed: {load_error}")
+            print("Trying compatibility mode...")
+            
+            try:
+                # Second try: Load with compile=False to avoid optimizer issues
+                model = tf.keras.models.load_model(MODEL_FILE, compile=False)
+                
+                # Recompile the model with current TensorFlow version
+                model.compile(
+                    optimizer='adam',
+                    loss='binary_crossentropy',
+                    metrics=['accuracy']
+                )
+                print("Model loaded successfully in compatibility mode!")
+                
+            except Exception as compat_error:
+                print(f"Compatibility mode loading failed: {compat_error}")
+                print("Trying custom object loading...")
+                
+                try:
+                    # Third try: Load with custom objects to handle version differences
+                    custom_objects = {
+                        'InputLayer': CompatibleInputLayer,
+                    }
+                    model = tf.keras.models.load_model(
+                        MODEL_FILE, 
+                        custom_objects=custom_objects,
+                        compile=False
+                    )
+                    
+                    # Recompile the model
+                    model.compile(
+                        optimizer='adam',
+                        loss='binary_crossentropy',
+                        metrics=['accuracy']
+                    )
+                    print("Model loaded successfully with custom objects!")
+                    
+                except Exception as custom_error:
+                    print(f"Custom object loading failed: {custom_error}")
+                    raise custom_error
     except Exception as e:
         print(f"Error loading model: {e}")
         return False
