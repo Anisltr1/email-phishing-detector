@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Email Detector</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="brand-logo">
+                <span class="brand-text">Email Phishing Detector</span>
+            </div>
+            <p class="tagline">A student project demonstrating machine learning for phishing detection</p>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-number">AI-Powered</span>
+                    <span class="stat-label">Detection</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">English Only</span>
+                    <span class="stat-label">Language</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">Neural Network</span>
+                    <span class="stat-label">Technology</span>
+                </div>
+            </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="analyzer-section">
+                <div class="input-section">
+                    <h2><i class="fas fa-envelope"></i> Analyze Email Content</h2>
+                    <p class="description">Paste your email content below to check if it's potentially phishing or safe.</p>
+                    
+                    <div class="input-container">
+                        <textarea 
+                            id="emailText" 
+                            placeholder="Paste your email content here...&#10;&#10;Example:&#10;URGENT: Your bank account is locked! Click verify NOW!&#10;&#10;or&#10;&#10;Hi mom, I will be home for dinner tonight, see you soon."
+                            rows="8"
+                        ></textarea>
+                        <div class="input-actions">
+                            <button id="clearBtn" class="btn btn-secondary">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                            <button id="analyzeBtn" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Analyze Email
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loadingState" class="loading-state hidden">
+                    <div class="spinner"></div>
+                    <p>Analyzing email content...</p>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="results-section hidden">
+                    <h3><i class="fas fa-chart-line"></i> Analysis Results</h3>
+                    
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div id="resultIcon" class="result-icon"></div>
+                            <div class="result-info">
+                                <h4 id="resultTitle"></h4>
+                                <p id="resultDescription"></p>
+                            </div>
+                        </div>
+                        
+                        <div class="confidence-meter">
+                            <div class="confidence-label">
+                                <span>Confidence Level</span>
+                                <span id="confidenceValue"></span>
+                            </div>
+                            <div class="confidence-bar">
+                                <div id="confidenceProgress" class="confidence-progress"></div>
+                            </div>
+                        </div>
+
+                        <div class="technical-details">
+                            <h5><i class="fas fa-cog"></i> Technical Details</h5>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Raw Score:</span>
+                                    <span id="rawScore" class="detail-value"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Classification:</span>
+                                    <span id="classification" class="detail-value"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Processed Text Length:</span>
+                                    <span id="textLength" class="detail-value"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error State -->
+                <div id="errorState" class="error-state hidden">
+                    <div class="error-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h4>Analysis Failed</h4>
+                    <p id="errorMessage"></p>
+                    <button id="retryBtn" class="btn btn-primary">
+                        <i class="fas fa-redo"></i> Try Again
+                    </button>
+                </div>
+            </div>
+
+            <!-- Info Section -->
+            <div class="info-section">
+                <div class="info-card">
+                    <h3><i class="fas fa-brain"></i> How the AI Works</h3>
+                    <p>This AI model analyzes email content using advanced neural networks to detect phishing patterns and suspicious language.</p>
+                    <ul>
+                        <li>Deep learning text analysis</li>
+                        <li>Pattern recognition in email content</li>
+                        <li>AI-powered threat detection</li>
+                        <li>Intelligent confidence scoring</li>
+                    </ul>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-info-circle"></i> Important Notes</h3>
+                    <p>This AI model is designed for educational purposes and has specific limitations you should know about.</p>
+                    <ul>
+                        <li>Works with English emails only</li>
+                        <li>AI model trained on email datasets</li>
+                        <li>Student project demonstration</li>
+                        <li>Neural network technology</li>
+                        <li>Free to test and explore</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 Email Phishing Detector - Student Project</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
