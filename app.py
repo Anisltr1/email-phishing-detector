@@ -18,6 +18,7 @@ import numpy as np
 import re
 import nltk
 import os
+from huggingface_hub import hf_hub_download
 
 # Download stopwords if not available
 try:
@@ -34,6 +35,10 @@ MAX_LENGTH = 200
 MODEL_FILE = "phishing_detector_model.keras"
 TOKENIZER_FILE = "tokenizer.pickle"
 
+# Hugging Face configuration
+HF_REPO_ID = "anisltr/phishing_detector_model"
+HF_MODEL_FILENAME = "phishing_detector_model.keras"
+
 # Global variables for model and tokenizer
 model = None
 tokenizer = None
@@ -48,6 +53,23 @@ def load_ai_model():
     # Load model
     print("Loading model...")
     try:
+        # Check if model exists locally
+        if not os.path.exists(MODEL_FILE):
+            print("Model not found locally. Downloading from Hugging Face...")
+            try:
+                # Download model from Hugging Face
+                downloaded_model_path = hf_hub_download(
+                    repo_id=HF_REPO_ID,
+                    filename=HF_MODEL_FILENAME,
+                    local_dir=".",
+                    local_dir_use_symlinks=False
+                )
+                print(f"Model downloaded successfully to: {downloaded_model_path}")
+            except Exception as download_error:
+                print(f"Error downloading model from Hugging Face: {download_error}")
+                print("Please ensure the model is uploaded to Hugging Face and the repo_id is correct.")
+                return False
+        
         model = tf.keras.models.load_model(MODEL_FILE)
         print("Model loaded successfully!")
     except Exception as e:
