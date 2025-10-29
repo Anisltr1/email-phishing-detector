@@ -1,15 +1,3 @@
-"""
-Email Phishing Detector - Flask Web Application
-
-A machine learning-powered web application that detects phishing emails
-using neural networks and natural language processing.
-
-Author: Student Project
-Date: 2025
-Technologies: Flask, TensorFlow, NLTK
-Purpose: Educational demonstration of ML in cybersecurity
-"""
-
 from flask import Flask, render_template, request, jsonify
 import tensorflow as tf
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -123,10 +111,7 @@ def clean_text(text):
     return ' '.join(words)
 
 def predict_phishing(email_text):
-    """
-    Predict if email text is phishing or safe
-    Returns: Dictionary with prediction results
-    """
+    """Predict if email is phishing or safe"""
     if not model or not tokenizer:
         return {"error": "AI model not loaded"}
     
