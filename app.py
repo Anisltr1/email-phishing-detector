@@ -20,11 +20,27 @@ import nltk
 import os
 from huggingface_hub import hf_hub_download
 
-# Download stopwords if not available
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords')
+def download_nltk_data():
+    """Download required NLTK data"""
+    required_data = [
+        ('corpora/stopwords', 'stopwords'),
+        ('tokenizers/punkt', 'punkt')
+    ]
+    
+    for data_path, data_name in required_data:
+        try:
+            nltk.data.find(data_path)
+            print(f"✓ NLTK {data_name} already available")
+        except LookupError:
+            print(f"Downloading NLTK {data_name}...")
+            try:
+                nltk.download(data_name, quiet=True)
+                print(f"✓ NLTK {data_name} downloaded successfully")
+            except Exception as e:
+                print(f"Error downloading NLTK {data_name}: {e}")
+
+# Download required NLTK data
+download_nltk_data()
 
 from nltk.corpus import stopwords
 
@@ -42,7 +58,13 @@ HF_MODEL_FILENAME = "phishing_detector_model.keras"
 # Global variables for model and tokenizer
 model = None
 tokenizer = None
-stop_words = set(stopwords.words('english'))
+
+# Initialize stopwords after ensuring download
+try:
+    stop_words = set(stopwords.words('english'))
+except Exception as e:
+    print(f"Error loading stopwords: {e}")
+    stop_words = set()  # Fallback to empty set
 
 def load_ai_model():
     """Load the AI model and tokenizer"""
